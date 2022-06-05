@@ -1,5 +1,6 @@
 import json
 import ssl
+import re
 from typing import Dict, Any, Tuple, List
 from urllib.error import HTTPError
 from urllib.parse import urlencode
@@ -25,7 +26,7 @@ def _make_request(url: str, params: Dict) -> Any:
 	return urlopen(full_url, context=ssl_context)
 
 
-def group_search(name :str) -> List[PackageSearchResult]:
+def group_search(name: str) -> List[PackageSearchResult]:
 	# TODO UPSTREAM: Implement /json/ for the groups search
 	try:
 		response = _make_request(BASE_GROUP_URL, {'name': name})
@@ -41,7 +42,7 @@ def group_search(name :str) -> List[PackageSearchResult]:
 	return [PackageSearchResult(**package) for package in json.loads(data)['results']]
 
 
-def package_search(package :str) -> PackageSearch:
+def package_search(package: str) -> PackageSearch:
 	"""
 	Finds a specific package via the package database.
 	It makes a simple web-request, which might be a bit slow.
@@ -58,8 +59,44 @@ def package_search(package :str) -> PackageSearch:
 	return PackageSearch(**json.loads(data))
 
 
-def find_package(package :str) -> List[PackageSearchResult]:
-	data = package_search(package)
+def pacman_package_search(package: str) -> PackageSearch:
+	results = []
+
+	try:
+		pkgname, pkgbase, repo, pkgver, pkgrel, pkgdesc = '', '', '', '', '', ''
+		for line in run_pacman(f"-Ss '{package}'"):
+			decodedLine = line.decode()
+			if re.match(r'\s', decodedLine):
+				pkgdesc = decodedLine.strip()
+				results.append({"pkgname": pkgname, "pkgbase": pkgbase, "repo": repo, "arch": '', 'pkgver': pkgver,
+								"pkgrel": pkgrel, 'pkgdesc': pkgdesc,
+								'epoch': '',
+								'url': '',
+								'filename': '', 'compressed_size': '', 'installed_size': '', 'build_date': '',
+								'last_update': '',
+								'flag_date': '', 'maintainers': '', 'packager': '', 'groups': '', 'licenses': '',
+								'conflicts': '',
+								'provides': '', 'replaces': '', 'depends': '', 'optdepends': '', 'makedepends': '',
+								'checkdepends': ''})
+				pkgname, pkgbase, repo, pkgver, pkgrel, pkgdesc = '', '', '', '', '', ''
+			else:
+				regex = r"(?P<repo>[^/]+)/(?P<pkgname>[^\s]+)\s(?P<pkgver>[^-\s]*)-(?P<pkgrel>\d)"
+				matches = re.search(regex, decodedLine.strip())
+				pkgname = matches.group('pkgname')
+				pkgbase = pkgname
+				repo = matches.group('repo')
+				pkgver = matches.group('pkgver')
+				pkgrel = matches.group('pkgrel')
+	except SysCallError:
+		pass
+
+	search = PackageSearch(2, len(results), True, 1, 1, results)
+
+	return search
+
+
+def find_package(package: str) -> List[PackageSearchResult]:
+	data = pacman_package_search(package)
 	results = []
 
 	for result in data.results:
@@ -76,7 +113,7 @@ def find_package(package :str) -> List[PackageSearchResult]:
 	return results
 
 
-def find_packages(*names :str) -> Dict[str, Any]:
+def find_packages(*names: str) -> Dict[str, Any]:
 	"""
 	This function returns the search results for many packages.
 	The function itself is rather slow, so consider not sending to
@@ -90,7 +127,7 @@ def find_packages(*names :str) -> Dict[str, Any]:
 	return result
 
 
-def validate_package_list(packages :list) -> Tuple[list, list]:
+def validate_package_list(packages: list) -> Tuple[list, list]:
 	"""
 	Validates a list of given packages.
 	return: Tuple of lists containing valid packavges in the first and invalid
@@ -102,7 +139,7 @@ def validate_package_list(packages :list) -> Tuple[list, list]:
 	return list(valid_packages), list(invalid_packages)
 
 
-def installed_package(package :str) -> LocalPackage:
+def installed_package(package: str) -> LocalPackage:
 	package_info = {}
 	try:
 		for line in run_pacman(f"-Q --info {package}"):
