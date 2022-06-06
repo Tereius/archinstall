@@ -1,10 +1,12 @@
 import logging
 import pathlib
+import re
 import urllib.error
 import urllib.request
 from typing import Union, Mapping, Iterable, Dict, Any, List
 
 from .general import SysCommand
+from .models.dataclasses import PackageRepository
 from .output import log
 from .storage import storage
 
@@ -84,6 +86,8 @@ def filter_mirrors_by_region(regions :str,
 
 def add_custom_mirrors(mirrors: List[str], *args :str, **kwargs :str) -> bool:
 	"""
+	DEPRECATED: use add_custom_repository instead
+
 	This will append custom mirror definitions in pacman.conf
 
 	:param mirrors: A list of mirror data according to: `{'url': 'http://url.com', 'signcheck': 'Optional', 'signoptions': 'TrustAll', 'name': 'testmirror'}`
@@ -96,6 +100,47 @@ def add_custom_mirrors(mirrors: List[str], *args :str, **kwargs :str) -> bool:
 			pacman.write(f"Server = {mirror['url']}\n")
 
 	return True
+
+
+def add_custom_repository(name: str, index: int, repo: PackageRepository):
+	"""
+	Insert a custom package repository in /etc/pacman.conf file at a specific index
+	"""
+	section_tmpl = r"\[(?P<header>.+)\]"
+
+	section_pattern = re.compile(section_tmpl)
+
+	# Read in the lines from the original file
+	with open("/etc/pacman.conf", "r") as pacman_conf:
+		lines = pacman_conf.readlines()
+
+	# Open the file again in write mode, to replace the contents
+	with open("/etc/pacman.conf", "w") as pacman_conf:
+
+		def write_entry():
+			pacman_conf.write(f'[{name}]\n')
+			if repo.include:
+				pacman_conf.write(f'Include = {repo.include}\n')
+			if repo.server:
+				pacman_conf.write(f'Server = {repo.server}\n')
+			if repo.sig_level:
+				pacman_conf.write(f'SigLevel = {repo.sig_level}\n')
+			if repo.usage:
+				pacman_conf.write(f'Usage = {repo.usage}\n')
+
+		current_section = 0
+		written = False
+		for line in lines:
+			if section_pattern.match(line):
+				if index == current_section:
+					write_entry()
+					written = True
+				current_section += 1
+				pacman_conf.write(line)
+			else:
+				pacman_conf.write(line)
+		if not written:
+			write_entry()
 
 
 def insert_mirrors(mirrors :Dict[str, Any], *args :str, **kwargs :str) -> bool:
