@@ -283,7 +283,7 @@ with PacmanConfBackup():
 			repo = matches.group('repo')
 			index = matches.group('index')
 			url = matches.group('url')
-			add_custom_repository(repo, int(index), PackageRepository(server=url, include='', sig_level='', usage=''))
+			add_custom_repository(repo, int(index), PackageRepository(server=url, include='', sig_level='Optional TrustedOnly', usage=''))
 			archinstall.log(f"Added custom mirror '{repo}' ({url}).", level=logging.INFO)
 
 	if not (archinstall.check_mirror_reachable() or archinstall.arguments.get('skip-mirror-check', False)):
