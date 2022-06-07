@@ -61,32 +61,29 @@ def package_search(package :str) -> PackageSearch:
 
 def pacman_package_search(package :str) -> PackageSearch:
 	results = []
-
+	regex = r"(?P<repo>[^/]+)/(?P<pkgname>[^\s]+)\s(?P<pkgver>[^-\s]*)-(?P<pkgrel>\d)"
 	try:
-		pkgname, pkgbase, repo, pkgver, pkgrel, pkgdesc = '', '', '', '', '', ''
-		for line in run_pacman(f"-Ss '{package}'"):
-			decodedLine = line.decode()
-			if re.match(r'\s', decodedLine):
-				pkgdesc = decodedLine.strip()
-				results.append({"pkgname": pkgname, "pkgbase": '', "repo": repo, "arch": '', 'pkgver': pkgver,
-								"pkgrel": pkgrel, 'pkgdesc': pkgdesc,
-								'epoch': '',
-								'url': '',
-								'filename': '', 'compressed_size': '', 'installed_size': '', 'build_date': '',
-								'last_update': '',
-								'flag_date': '', 'maintainers': '', 'packager': '', 'groups': '', 'licenses': '',
-								'conflicts': '',
-								'provides': '', 'replaces': '', 'depends': '', 'optdepends': '', 'makedepends': '',
-								'checkdepends': ''})
-				pkgname, pkgbase, repo, pkgver, pkgrel, pkgdesc = '', '', '', '', '', ''
-			else:
-				regex = r"(?P<repo>[^/]+)/(?P<pkgname>[^\s]+)\s(?P<pkgver>[^-\s]*)-(?P<pkgrel>\d)"
-				matches = re.search(regex, decodedLine.strip())
-				pkgname = matches.group('pkgname')
-				pkgbase = pkgname
-				repo = matches.group('repo')
-				pkgver = matches.group('pkgver')
-				pkgrel = matches.group('pkgrel')
+		line_iter = iter(run_pacman(f"-Ss '{package}'"))
+		for line in line_iter:
+			decoded_line = line.decode()
+			try:
+				decoded_next_line = next(line_iter)
+			except StopIteration:
+				pass
+			if re.match(regex, decoded_line):
+				matches = re.search(regex, decoded_line.strip())
+				if matches:
+					pkgname = matches.group('pkgname')
+					repo = matches.group('repo')
+					pkgver = matches.group('pkgver')
+					pkgrel = matches.group('pkgrel')
+					pkgdesc = decoded_next_line.strip()
+					results.append({"pkgname": pkgname, "pkgbase": '', "repo": repo, "arch": '', 'pkgver': pkgver,
+									"pkgrel": pkgrel, 'pkgdesc': pkgdesc, 'epoch': '', 'url': '',
+									'filename': '', 'compressed_size': '', 'installed_size': '', 'build_date': '',
+									'last_update': '', 'flag_date': '', 'maintainers': '', 'packager': '', 'groups': '',
+									'licenses': '', 'conflicts': '', 'provides': '', 'replaces': '', 'depends': '',
+									'optdepends': '', 'makedepends': '', 'checkdepends': ''})
 	except SysCallError:
 		pass
 

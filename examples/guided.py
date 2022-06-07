@@ -291,17 +291,19 @@ with PacmanConfBackup():
 		exit(1)
 
 	if not archinstall.arguments['offline']:
-		latest_version_archlinux_keyring = max([k.pkg_version for k in archinstall.find_package('archlinux-keyring')])
+		if archinstall.arguments.get('skip-keyring-update', False) is False:
+			latest_version_archlinux_keyring = max([k.pkg_version for k in archinstall.find_package('archlinux-keyring')] or [""])
 
-		# If we want to check for keyring updates
-		# and the installed package version is lower than the upstream version
-		if archinstall.arguments.get('skip-keyring-update', False) is False and \
-			archinstall.installed_package('archlinux-keyring').version < latest_version_archlinux_keyring:
-
-			# Then we update the keyring in the ISO environment
-			if not archinstall.update_keyring():
-				archinstall.log(f"Failed to update the keyring. Please check your internet connection and the log file '{log_file}'.", level=logging.INFO, fg="red")
+			if not latest_version_archlinux_keyring:
+				archinstall.log(
+					f"Failed to search for latest version of 'archlinux-keyring'. Please check your internet connection and the log file '{log_file}'.",
+					level=logging.INFO, fg="red")
 				exit(1)
+			elif archinstall.installed_package('archlinux-keyring').version < latest_version_archlinux_keyring:
+				# Then we update the keyring in the ISO environment
+				if not archinstall.update_keyring():
+					archinstall.log(f"Failed to update the keyring. Please check your internet connection and the log file '{log_file}'.", level=logging.INFO, fg="red")
+					exit(1)
 
 	if not archinstall.arguments.get('silent'):
 		ask_user_questions()

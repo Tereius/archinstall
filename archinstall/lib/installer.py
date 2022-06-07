@@ -739,6 +739,7 @@ class Installer:
 
 		# This handles making sure that the repositories we enabled persist on the installed system
 		if multilib or testing or copy_over_pacman_conf:
+			self.log(f"Copy pacman.conf to the target system")
 			shutil.copy2("/etc/pacman.conf", f"{self.target}/etc/pacman.conf")
 
 		# Periodic TRIM may improve the performance and longevity of SSDs whilst

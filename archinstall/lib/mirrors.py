@@ -102,45 +102,55 @@ def add_custom_mirrors(mirrors: List[str], *args :str, **kwargs :str) -> bool:
 	return True
 
 
-def add_custom_repository(name: str, index: int, repo: PackageRepository):
+def add_custom_repository(name: str, index: int, repo: PackageRepository) -> bool:
 	"""
-	Insert a custom package repository in /etc/pacman.conf file at a specific index
+	Insert a custom package repository in /etc/pacman.conf file at a specific index and returns True.
+	If the repository already exists nothing happens and False is returned.
 	"""
-	section_tmpl = r"\[(?P<header>.+)\]"
+	section_tmpl = r"^\s*\[(?P<header>.+)\]"
+	section_pattern = re.compile(section_tmpl, re.MULTILINE)
+	sections = []
 
-	section_pattern = re.compile(section_tmpl)
-
-	# Read in the lines from the original file
+	# Read in the lines from the original file and save all valid sections
 	with open("/etc/pacman.conf", "r") as pacman_conf:
 		lines = pacman_conf.readlines()
-
-	# Open the file again in write mode, to replace the contents
-	with open("/etc/pacman.conf", "w") as pacman_conf:
-
-		def write_entry():
-			pacman_conf.write(f'[{name}]\n')
-			if repo.include:
-				pacman_conf.write(f'Include = {repo.include}\n')
-			if repo.server:
-				pacman_conf.write(f'Server = {repo.server}\n')
-			if repo.sig_level:
-				pacman_conf.write(f'SigLevel = {repo.sig_level}\n')
-			if repo.usage:
-				pacman_conf.write(f'Usage = {repo.usage}\n')
-
-		current_section = 0
-		written = False
 		for line in lines:
-			if section_pattern.match(line):
-				if index == current_section:
-					write_entry()
-					written = True
-				current_section += 1
-				pacman_conf.write(line)
-			else:
-				pacman_conf.write(line)
-		if not written:
-			write_entry()
+			match = section_pattern.search(line)
+			if match:
+				sections.append(match.group("header"))
+
+	if name not in sections:
+		# Open the file again in write mode, to replace the contents
+		with open("/etc/pacman.conf", "w") as pacman_conf:
+			def write_entry():
+				pacman_conf.write(f'[{name}]\n')
+				if repo.include:
+					pacman_conf.write(f'Include = {repo.include}\n')
+				if repo.server:
+					pacman_conf.write(f'Server = {repo.server}\n')
+				if repo.sig_level:
+					pacman_conf.write(f'SigLevel = {repo.sig_level}\n')
+				if repo.usage:
+					pacman_conf.write(f'Usage = {repo.usage}\n')
+
+			current_section = 0
+			written = False
+			for line in lines:
+				if section_pattern.match(line):
+					if index == current_section:
+						write_entry()
+						written = True
+					current_section += 1
+					pacman_conf.write(line)
+				else:
+					pacman_conf.write(line)
+			if not written:
+				write_entry()
+				written = True
+			return written
+	else:
+		log(f'The repository with name {name} already exists - skipping', level=logging.INFO)
+	return False
 
 
 def insert_mirrors(mirrors :Dict[str, Any], *args :str, **kwargs :str) -> bool:
